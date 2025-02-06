@@ -25,7 +25,7 @@ class ResumeAnalyzer:
             )
             
             # Initialize LLM
-            llm = Ollama(model="deepseek-r1:8b", request_timeout=120.0)
+            llm = Ollama(model="llama3.2:latest", request_timeout=120.0)
             
             # Configure settings
             Settings.embed_model = embed_model

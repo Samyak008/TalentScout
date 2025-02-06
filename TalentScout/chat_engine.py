@@ -14,5 +14,5 @@ def chat(message: List[Dict[str, str]]) -> Dict[str, str]:
         str: The response message from the chatbot.
 
     """
-    response = ollama.chat(model="deepseek-r1:7b", messages=message,)
+    response = ollama.chat(model="llama3.2:latest", messages=message,)
     return response["message"]
