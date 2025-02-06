@@ -38,7 +38,7 @@ def initialize_database():
         )
 
 def insert_candidate(full_name, email, phone, years_of_experience, desired_position, current_location, tech_stack):
-    """Insert a new candidate into the database."""
+    """Insert a new candidate into the database and return the candidate ID."""
     with connection:
         cursor = connection.cursor()
         cursor.execute(
@@ -69,9 +69,19 @@ def get_candidate_by_email(email):
         cursor.execute("SELECT * FROM candidates WHERE email = ?", (email,))
         return cursor.fetchone()
 
-def get_conversations_by_candidate_id(candidate_id):
-    """Retrieve all conversations for a candidate."""
+def get_all_candidates():
+    """Retrieve all candidates from the database."""
     with connection:
         cursor = connection.cursor()
-        cursor.execute("SELECT * FROM conversations WHERE candidate_id = ? ORDER BY date ASC", (candidate_id,))
+        cursor.execute("SELECT * FROM candidates")
+        return cursor.fetchall()
+
+def get_conversations_by_candidate_id(candidate_id):
+    """Retrieve all conversations for a candidate ordered by date."""
+    with connection:
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT * FROM conversations WHERE candidate_id = ? ORDER BY date ASC", 
+            (candidate_id,)
+        )
         return cursor.fetchall()
