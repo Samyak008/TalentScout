@@ -8,6 +8,21 @@ initialize_database()
 # --- Helper Functions ---
 def candidate_registration():
     st.header("Candidate Registration")
+    
+    # Add resume upload before the form
+    resume_file = st.file_uploader("Upload your resume (PDF or TXT)", type=['pdf', 'txt'])
+    
+    if resume_file:
+        if "chat_manager" not in st.session_state:
+            st.session_state.chat_manager = ChatManager()
+        
+        with st.spinner("Analyzing resume..."):
+            # Reset file pointer to beginning
+            resume_file.seek(0)
+            if st.session_state.chat_manager.process_resume(resume_file):
+                st.success("Resume processed successfully!")
+
+    st.header("Candidate Registration")
     with st.form("registration_form", clear_on_submit=True):
         full_name = st.text_input("Full Name")
         email = st.text_input("Email Address")
@@ -38,15 +53,31 @@ def candidate_registration():
 def candidate_chat():
     st.header("Chat with TalentScout Hiring Assistant")
     
-    # Initialize chat manager if not present
-    if "chat_manager" not in st.session_state:
+    # Check if candidate data exists before proceeding
+    if "candidate_data" not in st.session_state:
+        st.error("Please complete registration first")
+        st.session_state.chat_started = False
+        st.rerun()
+        return
+    
+    # Initialize messages in session state if not present
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    # Initialize chat manager if not present or if it hasn't been initialized with candidate data
+    if ("chat_manager" not in st.session_state or 
+        not hasattr(st.session_state.chat_manager, 'candidate_data') or 
+        not st.session_state.chat_manager.candidate_data):
+        
         st.session_state.chat_manager = ChatManager()
         # Initialize the chat manager with candidate data
-        st.session_state.chat_manager.candidate_data = st.session_state.candidate_data
-    
-    # Initialize message history if not present
-    if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "👋 Welcome to the technical assessment! I'll be asking you some questions based on your tech stack."}]
+        initial_greeting = st.session_state.chat_manager.initialize_with_registration(
+            st.session_state.candidate_data
+        )
+        # Initialize messages with the greeting
+        st.session_state.messages = [
+            {"role": "assistant", "content": initial_greeting}
+        ]
     
     # Display candidate's registration info in sidebar
     with st.sidebar:
@@ -72,7 +103,7 @@ def candidate_chat():
         
         # Force a rerun to update the chat immediately
         st.rerun()
-
+        
 def agency_dashboard():
     st.header("Agency Dashboard")
     st.write("Welcome, Agency Representative!")

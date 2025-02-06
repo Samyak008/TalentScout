@@ -1,3 +1,6 @@
 streamlit==1.32.0
 ollama==0.1.0
 db-sqlite3
+pip install llama-index-core llama-index-embeddings-huggingface llama-index-llms-ollama
+pip install pdfplumber
+pip install chardet

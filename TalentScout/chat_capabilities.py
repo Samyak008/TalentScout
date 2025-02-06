@@ -1,21 +1,12 @@
 from typing import Dict, List, Tuple, Optional
+from TalentScout.resume_analyzer import ResumeAnalyzer
+from TalentScout.chat_engine import chat
 import re
-
-# Constants for fields to collect
-FIELDS = [
-    ("full_name", "What's your full name?"),
-    ("email", "What's your email address?"),
-    ("phone", "What's your phone number?"),
-    ("years_of_experience", "How many years of experience do you have?"),
-    ("desired_position", "What position are you applying for?"),
-    ("current_location", "What's your current location?"),
-    ("tech_stack", "What's your tech stack? (e.g., Python, Django, React)")
-]
 
 class ChatState:
     GREETING = "greeting"
-    COLLECTING_INFO = "collecting_info"
     TECHNICAL_ASSESSMENT = "technical_assessment"
+    RESUME_QUESTIONS = "resume_questions"  # Added new state
     FOLLOW_UP = "follow_up"
     ENDING = "ending"
 
@@ -23,46 +14,28 @@ class TechnicalAssessment:
     def __init__(self, tech_stack: str):
         self.tech_stack = tech_stack.lower().split(',')
         self.current_question_index = 0
-        self.questions = self.generate_questions()  # Generate questions immediately
+        self.questions = []
         self.answers = []
+        self.generate_questions()
         
-    def generate_questions(self) -> List[str]:
-        """Generate technical questions based on tech stack."""
-        questions = []
-        for tech in self.tech_stack:
-            tech = tech.strip()
-            if "python" in tech:
-                questions.extend([
-                    "What are decorators in Python and how do they work?",
-                    "Explain the difference between lists and tuples in Python.",
-                    "How does Python's garbage collection work?"
-                ])
-            elif "django" in tech:
-                questions.extend([
-                    "Explain Django's MTV architecture.",
-                    "What are Django middlewares?",
-                    "How do you handle authentication in Django?"
-                ])
-            elif "react" in tech:
-                questions.extend([
-                    "Explain React hooks and their advantages.",
-                    "What is the virtual DOM in React?",
-                    "How do you handle state management in React?"
-                ])
-            # Add more technology-specific questions here
+    def generate_questions(self):
+        """Generate technical questions using the chat engine."""
+        techs = ", ".join(self.tech_stack)
+        prompt = [
+            {
+                "role": "system",
+                "content": "You are an expert technical interviewer. Generate specific, technical questions based on the candidate's tech stack."
+            },
+            {
+                "role": "user",
+                "content": f"Generate 5 technical interview questions for a candidate who knows: {techs}. Make questions specific to these technologies."
+            }
+        ]
         
-        # If no technology-specific questions were generated, add general programming questions
-        if not questions:
-            questions = [
-                "Explain the concept of Object-Oriented Programming.",
-                "What is the difference between compiled and interpreted languages?",
-                "How do you approach debugging in your preferred programming language?",
-                "Explain the importance of version control in software development.",
-                "What are your thoughts on code documentation?"
-            ]
+        response = chat(prompt)
+        # Split response into questions
+        self.questions = [q.strip() for q in response["content"].split('\n') if '?' in q][:5]
         
-        return questions[:5]  # Limit to 5 questions
-    
     def get_next_question(self) -> Optional[str]:
         """Get the next question in the assessment."""
         if self.current_question_index < len(self.questions):
@@ -84,125 +57,158 @@ class ChatManager:
         self.state = ChatState.GREETING
         self.candidate_data = {}
         self.technical_assessment = None
+        self.resume_analyzer = ResumeAnalyzer()
+        self.resume_questions = []
+        self.current_resume_question_index = 0
+        self.chat_history = []
+
+    def process_resume(self, resume_file) -> bool:
+        """Process the uploaded resume."""
+        if self.resume_analyzer.initialize_models():
+            success = self.resume_analyzer.process_resume(resume_file)
+            if success:
+                # Store resume-based questions
+                self.resume_questions = self.resume_analyzer.interview_questions
+                return True
+        return False
         
-    def validate_email(self, email: str) -> bool:
-        """Validate email format."""
-        pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
-        return bool(re.match(pattern, email))
-    
-    def validate_phone(self, phone: str) -> bool:
-        """Validate phone number format."""
-        pattern = r'^\+?1?\d{9,15}$'
-        return bool(re.match(pattern, phone))
-    
-    def process_message(self, message: str) -> str:
-        """Process incoming message and return appropriate response."""
-        if self.state == ChatState.GREETING:
-            self.state = ChatState.COLLECTING_INFO
-            return self.get_next_info_prompt()
-            
-        elif self.state == ChatState.COLLECTING_INFO:
-            return self.handle_info_collection(message)
-            
-        elif self.state == ChatState.TECHNICAL_ASSESSMENT:
-            return self.handle_technical_assessment(message)
-            
-        elif self.state == ChatState.ENDING:
-            return self.end_conversation()
-            
-        return self.handle_fallback()
-    
-    def handle_info_collection(self, message: str) -> str:
-        """Handle the information collection phase."""
-        current_field = next((field for field, _ in FIELDS 
-                            if field not in self.candidate_data), None)
+    def initialize_with_registration(self, candidate_data: Dict):
+        """Initialize chat manager with registration data."""
+        self.candidate_data = candidate_data
+        self.state = ChatState.GREETING
+        return self.get_greeting()
         
-        if current_field:
-            # Validate input based on field type
-            if current_field == "email" and not self.validate_email(message):
-                return "Please provide a valid email address."
-            elif current_field == "phone" and not self.validate_phone(message):
-                return "Please provide a valid phone number."
-            elif current_field == "years_of_experience":
-                try:
-                    years = int(message)
-                    if years < 0:
-                        return "Please provide a valid number of years."
-                    self.candidate_data[current_field] = years
-                except ValueError:
-                    return "Please provide a valid number for years of experience."
-            else:
-                self.candidate_data[current_field] = message.strip()
-            
-            # Get next field or move to technical assessment
-            next_field = next((field for field, _ in FIELDS 
-                             if field not in self.candidate_data), None)
-            if next_field:
-                return self.get_next_info_prompt()
-            else:
-                self.state = ChatState.TECHNICAL_ASSESSMENT
-                self.technical_assessment = TechnicalAssessment(
-                    self.candidate_data.get("tech_stack", ""))
-                return self.start_technical_assessment()
+    def get_greeting(self) -> str:
+        """Generate personalized greeting using chat engine."""
+        prompt = [
+            {
+                "role": "system",
+                "content": "You are a friendly technical interviewer. Generate a warm, personalized greeting."
+            },
+            {
+                "role": "user",
+                "content": f"Generate a greeting for {self.candidate_data['full_name']} who is applying for {self.candidate_data['desired_position']} position with {self.candidate_data['years_of_experience']} years of experience."
+            }
+        ]
         
-        return self.handle_fallback()
-    
+        response = chat(prompt)
+        # If we have resume questions, start with those
+        if self.resume_questions:
+            self.state = ChatState.RESUME_QUESTIONS
+            greeting = response["content"] + "\n\nI've reviewed your resume, and I'd like to ask you some specific questions about your experience."
+            return greeting + "\n\n" + self.get_next_resume_question()
+        else:
+            self.state = ChatState.TECHNICAL_ASSESSMENT
+            return response["content"] + "\n\nLet's begin with some technical questions based on your experience."
+
+    def get_next_resume_question(self) -> Optional[str]:
+        """Get the next resume-based question."""
+        if self.current_resume_question_index < len(self.resume_questions):
+            question = self.resume_questions[self.current_resume_question_index]
+            self.current_resume_question_index += 1
+            return question
+        return None
+        
+    def handle_resume_questions(self, message: str) -> str:
+        """Handle resume-based questions phase."""
+        # Store the answer
+        if hasattr(self.resume_analyzer, 'store_answer'):
+            self.resume_analyzer.store_answer(message)
+        
+        next_question = self.get_next_resume_question()
+        if next_question:
+            return f"Thank you for your response. Next question:\n{next_question}"
+        else:
+            self.state = ChatState.TECHNICAL_ASSESSMENT
+            return "Thank you for those insights about your experience. Now, let's move on to some technical questions.\n\n" + self.handle_technical_assessment("")
+            
     def handle_technical_assessment(self, message: str) -> str:
-        """Handle the technical assessment phase."""
+        """Handle technical assessment phase."""
         if not self.technical_assessment:
-            self.technical_assessment = TechnicalAssessment(
-                self.candidate_data.get("tech_stack", ""))
-        
-        self.technical_assessment.record_answer(message)
-        
+            self.technical_assessment = TechnicalAssessment(self.candidate_data["tech_stack"])
+            return self.technical_assessment.get_next_question()
+            
+        if message:  # Only analyze answer if there's a message
+            # Record the answer and analyze it using chat engine
+            self.technical_assessment.record_answer(message)
+            
+            # Generate follow-up based on the answer
+            prompt = [
+                {
+                    "role": "system",
+                    "content": "You are an expert technical interviewer. Analyze the candidate's answer and provide a relevant follow-up or move to the next question."
+                },
+                {
+                    "role": "user",
+                    "content": f"Previous question: {self.technical_assessment.questions[self.technical_assessment.current_question_index-1]}\nCandidate's answer: {message}\nProvide a brief response and move to the next question if appropriate."
+                }
+            ]
+            
+            response = chat(prompt)
+            response_content = response["content"]
+        else:
+            response_content = ""
+
         if self.technical_assessment.is_complete():
             self.state = ChatState.ENDING
             return self.end_conversation()
-        
+            
         next_question = self.technical_assessment.get_next_question()
         if next_question:
-            return f"Next question:\n{next_question}"
+            return f"{response_content}\n\nNext question: {next_question}" if response_content else next_question
         else:
             self.state = ChatState.ENDING
             return self.end_conversation()
     
-    def get_next_info_prompt(self) -> str:
-        """Get the next information collection prompt."""
-        for field, prompt in FIELDS:
-            if field not in self.candidate_data:
-                return prompt
+    def process_message(self, message: str) -> str:
+        """Process incoming message and return appropriate response."""
+        # Add message to chat history
+        self.chat_history.append({"role": "user", "content": message})
         
-        # If all fields are collected, move to technical assessment
-        self.state = ChatState.TECHNICAL_ASSESSMENT
-        self.technical_assessment = TechnicalAssessment(
-            self.candidate_data.get("tech_stack", ""))
-        return self.start_technical_assessment()
-    
-    def start_technical_assessment(self) -> str:
-        """Start the technical assessment phase."""
-        if not self.technical_assessment:
-            self.technical_assessment = TechnicalAssessment(
-                self.candidate_data.get("tech_stack", ""))
-        
-        first_question = self.technical_assessment.get_next_question()
-        return (
-            "Great! Now let's assess your technical knowledge.\n"
-            "I'll ask you a few questions based on your tech stack.\n\n"
-            f"First question:\n{first_question}"
-        )
+        response = ""
+        if self.state == ChatState.GREETING:
+            response = self.get_greeting()
+        elif self.state == ChatState.RESUME_QUESTIONS:
+            response = self.handle_resume_questions(message)
+        elif self.state == ChatState.TECHNICAL_ASSESSMENT:
+            response = self.handle_technical_assessment(message)
+        elif self.state == ChatState.ENDING:
+            response = self.end_conversation()
+        else:
+            response = self.handle_fallback()
+            
+        # Add response to chat history
+        self.chat_history.append({"role": "assistant", "content": response})
+        return response
     
     def end_conversation(self) -> str:
-        """End the conversation and provide next steps."""
-        return (
-            "Thank you for completing the initial screening!\n"
-            "Our team will review your responses and get back to you soon.\n"
-            "If you have any questions, feel free to reach out to our HR team.\n"
-            "Best of luck with your application!"
-        )
+        """Generate personalized conversation ending."""
+        prompt = [
+            {
+                "role": "system",
+                "content": "You are a friendly technical interviewer. Generate a warm closing message."
+            },
+            {
+                "role": "user",
+                "content": f"Generate a closing message for {self.candidate_data['full_name']}'s technical interview for the {self.candidate_data['desired_position']} position."
+            }
+        ]
+        
+        response = chat(prompt)
+        return response["content"]
     
     def handle_fallback(self) -> str:
-        """Handle unexpected inputs."""
-        return (
-            "I'm sorry, I didn't understand that. "
-            "Could you please provide the requested information?"
-        )
+        """Handle unexpected inputs using chat engine."""
+        prompt = [
+            {
+                "role": "system",
+                "content": "You are a friendly technical interviewer. Generate a response for unexpected input."
+            },
+            {
+                "role": "user",
+                "content": "Generate a friendly message asking the candidate to provide relevant information for the technical interview."
+            }
+        ]
+        
+        response = chat(prompt)
+        return response["content"]
