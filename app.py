@@ -34,19 +34,34 @@ def candidate_registration():
         submitted = st.form_submit_button("Submit")
     
         if submitted and all([full_name, email, phone, desired_position, current_location, tech_stack]):
-            candidate_data = {
-                "full_name": full_name,
-                "email": email,
-                "phone": phone,
-                "years_of_experience": years_of_experience,
-                "desired_position": desired_position,
-                "current_location": current_location,
-                "tech_stack": tech_stack
-            }
-            # Store candidate details in session for use in chat flow
-            st.session_state.candidate_data = candidate_data
-            st.session_state.show_proceed_button = True
-            st.success("Registration complete!")
+            try:
+                # Insert into database
+                from TalentScout.database import insert_candidate
+                candidate_id = insert_candidate(
+                    full_name=full_name,
+                    email=email,
+                    phone=phone,
+                    years_of_experience=years_of_experience,
+                    desired_position=desired_position,
+                    current_location=current_location,
+                    tech_stack=tech_stack
+                )
+                candidate_data = {
+                    "full_name": full_name,
+                    "email": email,
+                    "phone": phone,
+                    "years_of_experience": years_of_experience,
+                    "desired_position": desired_position,
+                    "current_location": current_location,
+                    "tech_stack": tech_stack
+                }
+                # Store candidate details in session for use in chat flow
+                st.session_state.candidate_data = candidate_data
+                st.session_state.candidate_id = candidate_id
+                st.session_state.show_proceed_button = True
+                st.success("Registration complete! Your Information has been saved.")
+            except Exception as e:
+                st.error(f"Error registering candidate: {str(e)}")
         elif submitted:
             st.error("Please fill in all required fields.")
 
@@ -78,6 +93,13 @@ def candidate_chat():
         st.session_state.messages = [
             {"role": "assistant", "content": initial_greeting}
         ]
+        # Save the initial greeting to the database
+        from TalentScout.database import insert_conversation
+        insert_conversation(
+            candidate_id=st.session_state.candidate_id,
+            role="assistant",
+            content=initial_greeting
+        )
     
     # Display candidate's registration info in sidebar
     with st.sidebar:
@@ -95,15 +117,30 @@ def candidate_chat():
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": user_input})
         
+        # Save user message to database
+        from TalentScout.database import insert_conversation
+        insert_conversation(
+            candidate_id=st.session_state.candidate_id,
+            role="user",
+            content=user_input
+        )
+        
         # Get bot response
         bot_response = st.session_state.chat_manager.process_message(user_input)
         
         # Add bot response to chat history
         st.session_state.messages.append({"role": "assistant", "content": bot_response})
         
+        # Save bot response to database
+        insert_conversation(
+            candidate_id=st.session_state.candidate_id,
+            role="assistant",
+            content=bot_response
+        )
+        
         # Force a rerun to update the chat immediately
         st.rerun()
-        
+                
 def agency_dashboard():
     st.header("Agency Dashboard")
     st.write("Welcome, Agency Representative!")
