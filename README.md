@@ -84,13 +84,25 @@ TalentScout/
 - **Candidate & Agency Modes**: Allows both job seekers and recruiters to interact with the system.
 - **Database Integration**: Stores candidate details and chat history for streamlined hiring.
 
-## Contributing
+## Prompt Design
 
-Contributions are welcome! Feel free to submit a pull request with improvements.
+Our prompt design is centered around crafting effective and informative prompts to handle information gathering and technical question generation. The design process involved several key considerations:
 
-## License
+* **Clear and Concise Language**: Prompts were written in a clear and concise manner to ensure that users understand what information is being requested.
+* **Specific and Relevant Questions**: Questions were designed to be specific and relevant to the task at hand, reducing ambiguity and increasing the accuracy of user responses.
+* **Contextual Understanding**: Prompts were crafted to take into account the user's context and previous interactions, allowing for more informed and personalized responses.
 
-[Add your license information here]
+## Bonus Solution 
+
+Resume Integration
+
+## Challenges & Solutions
+
+During the development of the prompt design, several challenges required creative solutions:
+
+* **Addressing Ambiguity**: A primary challenge was handling ambiguous user inputs. A robust natural language processing (NLP) system was developed to accurately interpret user responses and provide relevant follow-up questions.
+* **Maintaining Context**: Another challenge was maintaining context throughout the conversation. A contextual understanding system was implemented to consider the user's previous interactions and adjust the prompts accordingly.
+* **Balancing Information Gathering and Technical Question Generation**: The challenge of balancing information gathering with technical question generation was also faced. A hybrid approach was developed that combines open-ended questions with more specific, technical queries.
 
 ## Acknowledgments
 
