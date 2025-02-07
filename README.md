@@ -3,9 +3,10 @@
 A Streamlit-based application that enables candidates to register, upload resumes, and interact with a hiring assistant chatbot for job opportunities.
 
 ![TalentScout Interface](assets/file_2025-02-07_11.31.37.png)
-![Agency Dashboard](assets/file_2025-02-07_11.36.21.png)
-![Chatbot Interface](assets/file_2025-02-07_11.38.31.png)
 
+![Agency Dashboard](assets/file_2025-02-07_11.36.21.png)
+
+![Chatbot Interface](assets/file_2025-02-07_11.38.31.png)
 ## Features
 
 - 📄 **Resume Upload & Processing**: Supports PDF and TXT file uploads for automated resume analysis.
