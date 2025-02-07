@@ -18,7 +18,7 @@ A Streamlit-based application that enables candidates to register, upload resume
 1. Clone the repository:
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Samyak008/TalentScout.git
    cd TalentScout
    ```
 
@@ -27,14 +27,7 @@ A Streamlit-based application that enables candidates to register, upload resume
    ```bash
    pip install -r requirements.txt
    ```
-
-3. Initialize the database:
-
-   ```bash
-   python -c "from TalentScout.database import initialize_database; initialize_database()"
-   ```
-
-4. Run the application:
+3. Run the application:
 
    ```bash
    streamlit run app.py
@@ -57,14 +50,15 @@ A Streamlit-based application that enables candidates to register, upload resume
 
 Key dependencies include:
 
-- `streamlit>=1.12`
-- `sqlite3`
-- `python-docx`
-- `PyMuPDF`
-- `nltk`
-- `openai` (for AI chat capabilities)
-- `pandas`
-
+- `streamlit==1.32.0`
+- `ollama==0.1.0`
+- `db-sqlite3`
+- `llama-index-core`
+- `llama-index-embeddings-huggingface`
+- `llama-index-llms-ollama`
+- `pdfplumber`
+- `chardet`
+ 
 ## Project Structure
 
 ```bash
