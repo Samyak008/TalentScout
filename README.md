@@ -2,7 +2,7 @@
 
 A Streamlit-based application that enables candidates to register, upload resumes, and interact with a hiring assistant chatbot for job opportunities.
 
-![TalentScout Interface](assets/home_page.png)
+![TalentScout Interface](D:\PGAGI\assets\file_2025-02-07_11.31.37.png)
 
 ## Features
 
