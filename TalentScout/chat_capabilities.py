@@ -37,12 +37,13 @@ class TechnicalAssessment:
         self.questions = [q.strip() for q in response["content"].split('\n') if '?' in q][:5]
         
     def get_next_question(self) -> Optional[str]:
-        """Get the next question in the assessment."""
+        """Retrieve one question at a time from stored questions."""
         if self.current_question_index < len(self.questions):
             question = self.questions[self.current_question_index]
             self.current_question_index += 1
             return question
-        return None
+        return "You've completed the technical assessment. Thank you!"
+
     
     def record_answer(self, answer: str):
         """Record the candidate's answer."""
@@ -75,6 +76,8 @@ class ChatManager:
     def initialize_with_registration(self, candidate_data: Dict):
         """Initialize chat manager with registration data."""
         self.candidate_data = candidate_data
+        if 'candidate_id' in candidate_data:
+            self.candidate_id = candidate_data['candidate_id']
         self.state = ChatState.GREETING
         return self.get_greeting()
         
@@ -83,14 +86,26 @@ class ChatManager:
         prompt = [
             {
                 "role": "system",
-                "content": "You are a friendly technical interviewer. Generate a warm, personalized greeting."
+                "content": """You are a professional technical recruiter conducting an interview. Your responses should be:
+                1. Warm and welcoming, but maintaining professional tone
+                2. Personalized to the candidate's background and position
+                3. Specific about their experience and desired role
+                4. Clear about the interview process
+                Do not use placeholder text like [industry/field]. Use the actual information provided."""
             },
             {
                 "role": "user",
-                "content": f"Generate a greeting for {self.candidate_data['full_name']} who is applying for {self.candidate_data['desired_position']} position with {self.candidate_data['years_of_experience']} years of experience."
+                "content": f"""Generate a personalized greeting for a technical interview with these details:
+                - Candidate Name: {self.candidate_data['full_name']}
+                - Position: {self.candidate_data['desired_position']}
+                - Experience: {self.candidate_data['years_of_experience']} years
+                - Tech Stack: {self.candidate_data['tech_stack']}
+                - Location: {self.candidate_data['current_location']}
+
+                The greeting should welcome them and briefly outline the interview process."""
             }
         ]
-        
+    
         response = chat(prompt)
         # If we have resume questions, start with those
         if self.resume_questions:
@@ -100,7 +115,7 @@ class ChatManager:
         else:
             self.state = ChatState.TECHNICAL_ASSESSMENT
             return response["content"] + "\n\nLet's begin with some technical questions based on your experience."
-
+    
     def get_next_resume_question(self) -> Optional[str]:
         """Get the next resume-based question."""
         if self.current_resume_question_index < len(self.resume_questions):
@@ -128,19 +143,24 @@ class ChatManager:
             self.technical_assessment = TechnicalAssessment(self.candidate_data["tech_stack"])
             return self.technical_assessment.get_next_question()
             
-        if message:  # Only analyze answer if there's a message
+        if message and self.technical_assessment.questions:  # Check if questions exist
             # Record the answer and analyze it using chat engine
             self.technical_assessment.record_answer(message)
             
+            current_question = self.technical_assessment.questions[self.technical_assessment.current_question_index-1]
             # Generate follow-up based on the answer
             prompt = [
                 {
                     "role": "system",
-                    "content": "You are an expert technical interviewer. Analyze the candidate's answer and provide a relevant follow-up or move to the next question."
+                    "content": """You are an expert technical interviewer for software engineering positions. Your responses should be:
+                    1. Relevant to the candidate's tech stack and experience level
+                    2. Technical and specific, but respectful and encouraging
+                    3. Based on industry best practices and real-world scenarios
+                    Analyze the candidate's answer and provide constructive feedback before moving to the next question."""
                 },
                 {
                     "role": "user",
-                    "content": f"Previous question: {self.technical_assessment.questions[self.technical_assessment.current_question_index-1]}\nCandidate's answer: {message}\nProvide a brief response and move to the next question if appropriate."
+                    "content": f"Current technical interview context:\n- Position: {self.candidate_data['desired_position']}\n- Experience: {self.candidate_data['years_of_experience']} years\n- Tech Stack: {self.candidate_data['tech_stack']}\n\nPrevious question: {current_question}\nCandidate's answer: {message}\n\nProvide a brief, technical evaluation of the answer and transition to the next question."
                 }
             ]
             
@@ -159,12 +179,18 @@ class ChatManager:
         else:
             self.state = ChatState.ENDING
             return self.end_conversation()
-    
+
     def process_message(self, message: str) -> str:
         """Process incoming message and return appropriate response."""
+        from TalentScout.database import insert_conversation
+
         # Add message to chat history
         self.chat_history.append({"role": "user", "content": message})
-        
+
+        # Save user message to database if we have a candidate_id
+        if hasattr(self, 'candidate_id'):
+            insert_conversation(self.candidate_id, "user", message)
+
         response = ""
         if self.state == ChatState.GREETING:
             response = self.get_greeting()
@@ -176,9 +202,14 @@ class ChatManager:
             response = self.end_conversation()
         else:
             response = self.handle_fallback()
-            
+
         # Add response to chat history
         self.chat_history.append({"role": "assistant", "content": response})
+
+        # Save assistant response to database if we have a candidate_id
+        if hasattr(self, 'candidate_id'):
+            insert_conversation(self.candidate_id, "assistant", response)
+
         return response
     
     def end_conversation(self) -> str:
